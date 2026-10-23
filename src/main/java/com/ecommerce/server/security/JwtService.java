@@ -54,9 +54,9 @@ public class JwtService {
 
     public boolean isTokenValid(String token, String expectedEmail) {
         try {
-            String email = extractEmail(token);
-            return email.equals(expectedEmail)
-                    && extractAllClaims(token).getExpiration().before(new Date());
+            Claims claims = extractAllClaims(token);
+            return claims.getSubject().equals(expectedEmail)
+                    && claims.getExpiration().after(new Date());
         } catch (Exception e) {
             return false;
         }

@@ -1,9 +1,12 @@
 package com.ecommerce.server.security;
 
+import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -21,6 +24,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Configuration
@@ -49,13 +54,41 @@ public class SecurityConfig {
                                 "/index.html",
                                 "/css/**",
                                 "/js/**",
-                                "/api/auth/**"
+                                "/api/auth/**",
+                                "/error"
                         ).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/products").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, exception) ->
+                                writeError(
+                                        response,
+                                        HttpServletResponse.SC_UNAUTHORIZED,
+                                        "Authentication required"
+                                ))
+                        .accessDeniedHandler((request, response, exception) ->
+                                writeError(
+                                        response,
+                                        HttpServletResponse.SC_FORBIDDEN,
+                                        "Access denied"
+                                ))
+                )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
+    }
+
+    private static void writeError(
+            HttpServletResponse response,
+            int status,
+            String message
+    ) throws IOException {
+        response.setStatus(status);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.getWriter().write(
+                "{\"status\":" + status + ",\"message\":\"" + message + "\"}"
+        );
     }
 
     @Bean
