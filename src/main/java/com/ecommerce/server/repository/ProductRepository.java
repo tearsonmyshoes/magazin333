@@ -8,4 +8,6 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     boolean existsByNameIgnoreCaseAndSeller_Id(String name, Long sellerId);
 
     boolean existsByNameIgnoreCaseAndSeller_IdAndIdNot(String name, Long sellerId, Long id);
+
+    boolean existsByCategory_Id(Long categoryId);
 }

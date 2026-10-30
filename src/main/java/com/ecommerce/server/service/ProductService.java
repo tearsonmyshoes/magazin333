@@ -93,19 +93,18 @@ public class ProductService {
     }
 
     @Transactional
-    public ProductResponse update(Long id, UpdateProductRequest request, String sellerEmail) {
+    public ProductResponse update(Long id, UpdateProductRequest request) {
         Product product = getProduct(id);
-        User seller = getUserByEmail(sellerEmail);
-        requireOwner(product, seller);
+        Long sellerId = product.getSeller() == null ? null : product.getSeller().getId();
 
         if (request.name() != null) {
             String name = normalizeName(request.name());
 
-            if (productRepository
-                    .existsByNameIgnoreCaseAndSeller_IdAndIdNot(name, seller.getId(), product.getId())) {
+            if (sellerId != null && productRepository
+                    .existsByNameIgnoreCaseAndSeller_IdAndIdNot(name, sellerId, product.getId())) {
                 throw new ResponseStatusException(
                         HttpStatus.CONFLICT,
-                        "You already have a product with this name"
+                        "This seller already has a product with this name"
                 );
             }
 
@@ -132,12 +131,8 @@ public class ProductService {
     }
 
     @Transactional
-    public void delete(Long id, String sellerEmail) {
-        Product product = getProduct(id);
-        User seller = getUserByEmail(sellerEmail);
-        requireOwner(product, seller);
-
-        productRepository.delete(product);
+    public void delete(Long id) {
+        productRepository.delete(getProduct(id));
     }
 
     private Product getProduct(Long id) {
@@ -156,16 +151,6 @@ public class ProductService {
                         HttpStatus.UNAUTHORIZED,
                         "User not found"
                 ));
-    }
-
-    private void requireOwner(Product product, User user) {
-        if (product.getSeller() == null
-                || !product.getSeller().getId().equals(user.getId())) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "You can only modify your own products"
-            );
-        }
     }
 
     private Category resolveCategory(Long categoryId) {

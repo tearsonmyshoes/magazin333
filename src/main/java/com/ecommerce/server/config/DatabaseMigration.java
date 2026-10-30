@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -22,18 +21,17 @@ import java.util.List;
  * Brings databases created by older versions of the application up to date.
  *
  * <p>Hibernate's {@code ddl-auto=update} can add new columns and tables, but it
- * cannot drop the old {@code users.role} column or the old global unique
- * constraint on {@code products.name}. Both are fixed here, after Hibernate has
- * finished its schema update and before the application starts serving requests.</p>
+ * cannot remove the old global unique constraint on {@code products.name}.
+ * This migration also normalizes user roles and is executed after Hibernate has
+ * finished its schema update but before the application serves requests.</p>
  */
 @Component
-@Order(Ordered.LOWEST_PRECEDENCE)
+@Order(0)
 public class DatabaseMigration implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMigration.class);
 
     private static final String USERS_TABLE = "users";
     private static final String PRODUCTS_TABLE = "products";
-    private static final String USERS_OLD_TABLE = "users_migration_old";
     private static final String PRODUCTS_NEW_TABLE = "products_migration_new";
     private static final String PRODUCTS_OLD_TABLE = "products_migration_old";
 
@@ -56,11 +54,8 @@ public class DatabaseMigration implements ApplicationRunner {
             try {
                 connection.setAutoCommit(false);
 
-                // Rebuild products first so no foreign key can keep pointing at
-                // the old users table after it is renamed below.
-                boolean hasLegacyUsers = columns(connection, USERS_TABLE).contains("role");
-                migrateProducts(connection, hasLegacyUsers);
                 migrateUsers(connection);
+                migrateProducts(connection);
 
                 connection.commit();
             } catch (SQLException exception) {
@@ -80,31 +75,26 @@ public class DatabaseMigration implements ApplicationRunner {
     }
 
     private void migrateUsers(Connection connection) throws SQLException {
-        if (!columns(connection, USERS_TABLE).contains("role")) {
+        List<String> columns = columns(connection, USERS_TABLE);
+
+        if (columns.isEmpty()) {
             return;
         }
 
-        log.info("Removing the obsolete users.role column");
+        if (!columns.contains("role")) {
+            log.info("Adding the users.role column");
+            execute(connection, "ALTER TABLE \"" + USERS_TABLE + "\" ADD COLUMN \"role\" varchar(20)");
+        }
 
-        execute(connection, "DROP TABLE IF EXISTS \"" + USERS_OLD_TABLE + "\"");
-        execute(connection, "ALTER TABLE \"" + USERS_TABLE + "\" RENAME TO \"" + USERS_OLD_TABLE + "\"");
-        execute(connection, """
-                CREATE TABLE "users" (
-                    "id" integer,
-                    "created_at" timestamp not null,
-                    "email" varchar(255) not null unique,
-                    "password_hash" varchar(100) not null,
-                    primary key ("id")
-                )
-                """);
+        // Accounts created before roles were introduced, as well as rows written
+        // directly to the database, always start as regular users.
         execute(connection,
-                "INSERT INTO \"users\" (\"id\", \"created_at\", \"email\", \"password_hash\")"
-                        + " SELECT \"id\", \"created_at\", \"email\", \"password_hash\""
-                        + " FROM \"" + USERS_OLD_TABLE + "\"");
-        execute(connection, "DROP TABLE \"" + USERS_OLD_TABLE + "\"");
+                "UPDATE \"" + USERS_TABLE + "\""
+                        + " SET \"role\" = 'USER'"
+                        + " WHERE \"role\" IS NULL OR \"role\" NOT IN ('USER', 'ADMIN')");
     }
 
-    private void migrateProducts(Connection connection, boolean forceRebuild) throws SQLException {
+    private void migrateProducts(Connection connection) throws SQLException {
         List<String> columns = columns(connection, PRODUCTS_TABLE);
 
         if (columns.isEmpty()) {
@@ -114,7 +104,7 @@ public class DatabaseMigration implements ApplicationRunner {
         boolean hasSeller = columns.contains("seller_id");
         boolean nameIsGloballyUnique = hasUniqueIndexOn(connection, PRODUCTS_TABLE, "name");
 
-        if (!forceRebuild && hasSeller && !nameIsGloballyUnique) {
+        if (hasSeller && !nameIsGloballyUnique) {
             ensureSellerNameIndex(connection);
             return;
         }

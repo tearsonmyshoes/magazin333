@@ -9,6 +9,7 @@ import com.ecommerce.server.dto.product.UpdateProductRequest;
 import com.ecommerce.server.service.ProductService;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,6 +51,7 @@ public class ProductController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('ADMIN')")
     public ProductResponse createProduct(
             @Valid @RequestBody CreateProductRequest request,
             Authentication authentication
@@ -58,20 +60,18 @@ public class ProductController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ProductResponse updateProduct(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateProductRequest request,
-            Authentication authentication
+            @Valid @RequestBody UpdateProductRequest request
     ) {
-        return productService.update(id, request, authentication.getName());
+        return productService.update(id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteProduct(
-            @PathVariable Long id,
-            Authentication authentication
-    ) {
-        productService.delete(id, authentication.getName());
+    @PreAuthorize("hasRole('ADMIN')")
+    public void deleteProduct(@PathVariable Long id) {
+        productService.delete(id);
     }
 }

@@ -36,6 +36,7 @@ public class UserController {
         return new UserResponse(
                 user.getId(),
                 user.getEmail(),
+                user.getRole().name(),
                 user.getCreatedAt()
         );
     }
@@ -43,6 +44,7 @@ public class UserController {
     public record UserResponse(
             Long id,
             String email,
+            String role,
             LocalDateTime createdAt
     ) {}
 }

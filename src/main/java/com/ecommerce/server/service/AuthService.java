@@ -39,7 +39,7 @@ public class AuthService {
         }
 
         String hashedPassword = passwordEncoder.encode(request.password());
-        User user = new User(email, hashedPassword);
+        User user = new User(email, hashedPassword, User.Role.USER);
         User savedUser = userRepository.save(user);
 
         return createResponse(savedUser);
@@ -74,7 +74,8 @@ public class AuthService {
                 token,
                 "Bearer",
                 user.getId(),
-                user.getEmail()
+                user.getEmail(),
+                user.getRole().name()
         );
     }
 }
