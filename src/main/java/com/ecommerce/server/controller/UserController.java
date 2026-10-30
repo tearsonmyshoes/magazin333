@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
+
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -25,25 +27,22 @@ public class UserController {
     @GetMapping("/me")
     public UserResponse me(Authentication authentication) {
         User user = userRepository
-                .findByEmail(
-                        authentication.getName()
-                )
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.NOT_FOUND,
-                                "User not found"
-                        ));
+                .findByEmail(authentication.getName())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "User not found"
+                ));
 
         return new UserResponse(
                 user.getId(),
                 user.getEmail(),
-                user.getRole().name()
+                user.getCreatedAt()
         );
     }
 
     public record UserResponse(
             Long id,
             String email,
-            String role
+            LocalDateTime createdAt
     ) {}
 }

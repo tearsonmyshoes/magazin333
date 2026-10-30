@@ -40,6 +40,8 @@
 @SET __MVNW_ARG0_NAME__=
 @SET MVNW_USERNAME=
 @SET MVNW_PASSWORD=
+@REM Spring Boot 4 needs Java 17+. Use a suitable JDK even when JAVA_HOME points to Java 8.
+@FOR /F "usebackq delims=" %%J IN (`powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0.mvn\find-jdk.ps1"`) DO @SET "JAVA_HOME=%%J"
 @IF NOT "%__MVNW_CMD__%"=="" ("%__MVNW_CMD__%" %*)
 @echo Cannot start maven from wrapper >&2 && exit /b 1
 @GOTO :EOF

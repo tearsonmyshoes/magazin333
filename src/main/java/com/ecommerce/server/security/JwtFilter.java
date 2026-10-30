@@ -45,22 +45,21 @@ public class JwtFilter extends OncePerRequestFilter {
             String email = jwtService.extractEmail(token);
             User user = userRepository.findByEmail(email).orElse(null);
 
-            if (user != null &&
-                    jwtService.isTokenValid(token, user.getEmail()) &&
-                    SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (user != null
+                    && jwtService.isTokenValid(token, user.getEmail())
+                    && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
                                 user.getEmail(),
                                 null,
-                                List.of(
-                                        new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
-                                ));
+                                List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                        );
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
 
-        } catch (Exception ignored){
-            // Ignore exception
+        } catch (Exception ignored) {
+            // Invalid token: continue as an anonymous request.
         }
 
         filterChain.doFilter(request, response);

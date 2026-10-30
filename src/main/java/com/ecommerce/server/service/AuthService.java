@@ -39,7 +39,7 @@ public class AuthService {
         }
 
         String hashedPassword = passwordEncoder.encode(request.password());
-        User user = new User(email, hashedPassword, User.Role.USER);
+        User user = new User(email, hashedPassword);
         User savedUser = userRepository.save(user);
 
         return createResponse(savedUser);
@@ -68,16 +68,13 @@ public class AuthService {
     }
 
     private AuthResponse createResponse(User user) {
-        String token = jwtService.generateToken(
-                user.getId(), user.getEmail(), user.getRole().name()
-        );
+        String token = jwtService.generateToken(user.getId(), user.getEmail());
 
         return new AuthResponse(
                 token,
                 "Bearer",
                 user.getId(),
-                user.getEmail(),
-                user.getRole().name()
+                user.getEmail()
         );
     }
 }

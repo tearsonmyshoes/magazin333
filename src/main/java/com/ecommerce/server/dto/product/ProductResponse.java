@@ -11,5 +11,7 @@ public record ProductResponse(
         Integer stock,
         Long categoryId,
         String categoryName,
+        Long sellerId,
+        String sellerEmail,
         LocalDateTime createdAt
 ) {}

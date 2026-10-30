@@ -12,7 +12,7 @@ class JwtServiceTest {
     @Test
     void acceptsValidTokenForMatchingEmail() {
         JwtService jwtService = new JwtService(SECRET, 60_000);
-        String token = jwtService.generateToken(1L, "user@example.com", "USER");
+        String token = jwtService.generateToken(1L, "user@example.com");
 
         assertTrue(jwtService.isTokenValid(token, "user@example.com"));
     }
@@ -20,7 +20,7 @@ class JwtServiceTest {
     @Test
     void rejectsValidTokenForDifferentEmail() {
         JwtService jwtService = new JwtService(SECRET, 60_000);
-        String token = jwtService.generateToken(1L, "user@example.com", "USER");
+        String token = jwtService.generateToken(1L, "user@example.com");
 
         assertFalse(jwtService.isTokenValid(token, "other@example.com"));
     }
@@ -28,7 +28,7 @@ class JwtServiceTest {
     @Test
     void rejectsExpiredToken() {
         JwtService jwtService = new JwtService(SECRET, -60_000);
-        String token = jwtService.generateToken(1L, "user@example.com", "USER");
+        String token = jwtService.generateToken(1L, "user@example.com");
 
         assertFalse(jwtService.isTokenValid(token, "user@example.com"));
     }

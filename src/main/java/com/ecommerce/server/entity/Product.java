@@ -12,7 +12,7 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 150)
+    @Column(nullable = false, length = 150)
     private String name;
 
     @Column(columnDefinition = "TEXT")
@@ -28,6 +28,10 @@ public class Product {
     @JoinColumn(name = "category_id")
     private Category category;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "seller_id")
+    private User seller;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -38,13 +42,15 @@ public class Product {
             String description,
             BigDecimal price,
             Integer stock,
-            Category category
+            Category category,
+            User seller
             ) {
         this.name = name;
         this.description = description;
         this.price = price;
         this.stock = stock;
         this.category = category;
+        this.seller = seller;
     }
 
     @PrePersist
@@ -64,6 +70,7 @@ public class Product {
     public BigDecimal getPrice() { return price; }
     public Integer getStock() { return stock; }
     public Category getCategory() { return category; }
+    public User getSeller() { return seller; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 
     public void setId(Long id) { this.id = id; }
@@ -72,5 +79,6 @@ public class Product {
     public void setPrice(BigDecimal price) { this.price = price; }
     public void setStock(Integer stock) { this.stock = stock; }
     public void setCategory(Category category) { this.category = category; }
+    public void setSeller(User seller) { this.seller = seller; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

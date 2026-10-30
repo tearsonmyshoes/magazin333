@@ -5,12 +5,16 @@ import jakarta.validation.Valid;
 import com.ecommerce.server.dto.product.CreateProductRequest;
 import com.ecommerce.server.dto.product.ProductFilterRequest;
 import com.ecommerce.server.dto.product.ProductResponse;
+import com.ecommerce.server.dto.product.UpdateProductRequest;
 import com.ecommerce.server.service.ProductService;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -32,6 +36,11 @@ public class ProductController {
         return productService.findAll();
     }
 
+    @GetMapping("/{id}")
+    public ProductResponse getProduct(@PathVariable Long id) {
+        return productService.findById(id);
+    }
+
     @PostMapping("/filter")
     public List<ProductResponse> filterProducts(
             @Valid @RequestBody(required = false) ProductFilterRequest request
@@ -41,8 +50,28 @@ public class ProductController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('ADMIN')")
-    public ProductResponse createProduct(@Valid @RequestBody CreateProductRequest request) {
-        return productService.create(request);
+    public ProductResponse createProduct(
+            @Valid @RequestBody CreateProductRequest request,
+            Authentication authentication
+    ) {
+        return productService.create(request, authentication.getName());
+    }
+
+    @PutMapping("/{id}")
+    public ProductResponse updateProduct(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateProductRequest request,
+            Authentication authentication
+    ) {
+        return productService.update(id, request, authentication.getName());
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteProduct(
+            @PathVariable Long id,
+            Authentication authentication
+    ) {
+        productService.delete(id, authentication.getName());
     }
 }

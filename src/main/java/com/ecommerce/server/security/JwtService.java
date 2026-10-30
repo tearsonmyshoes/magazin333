@@ -25,11 +25,7 @@ public class JwtService {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(
-          Long userId,
-          String email,
-          String role
-    ) {
+    public String generateToken(Long userId, String email) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(email)
@@ -43,7 +39,7 @@ public class JwtService {
     public String extractEmail(String token) {
         return extractAllClaims(token).getSubject();
     }
-    
+
     public Claims extractAllClaims(String token) {
         return Jwts.parser()
                 .verifyWith(secretKey)
@@ -61,5 +57,4 @@ public class JwtService {
             return false;
         }
     }
-
 }

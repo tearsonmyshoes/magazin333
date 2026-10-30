@@ -3,10 +3,13 @@ package com.ecommerce.server.service;
 import com.ecommerce.server.dto.product.CreateProductRequest;
 import com.ecommerce.server.dto.product.ProductFilterRequest;
 import com.ecommerce.server.dto.product.ProductResponse;
+import com.ecommerce.server.dto.product.UpdateProductRequest;
 import com.ecommerce.server.entity.Category;
 import com.ecommerce.server.entity.Product;
+import com.ecommerce.server.entity.User;
 import com.ecommerce.server.repository.CategoryRepository;
 import com.ecommerce.server.repository.ProductRepository;
+import com.ecommerce.server.repository.UserRepository;
 
 import jakarta.persistence.criteria.Predicate;
 
@@ -24,13 +27,16 @@ import java.util.List;
 public class ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final UserRepository userRepository;
 
     public ProductService(
             ProductRepository productRepository,
-            CategoryRepository categoryRepository
+            CategoryRepository categoryRepository,
+            UserRepository userRepository
     ) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional(readOnly = true)
@@ -43,9 +49,14 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
+    public ProductResponse findById(Long id) {
+        return toResponse(getProduct(id));
+    }
+
+    @Transactional(readOnly = true)
     public List<ProductResponse> filter(ProductFilterRequest request) {
         ProductFilterRequest filter = request == null
-                ? new ProductFilterRequest(null, null, null, null, null, null)
+                ? new ProductFilterRequest(null, null, null, null, null, null, null)
                 : request;
 
         validateFilter(filter);
@@ -58,35 +69,138 @@ public class ProductService {
     }
 
     @Transactional
-    public ProductResponse create(CreateProductRequest request) {
-        String name = request.name().trim();
+    public ProductResponse create(CreateProductRequest request, String sellerEmail) {
+        User seller = getUserByEmail(sellerEmail);
+        String name = normalizeName(request.name());
 
-        if (productRepository.existsByNameIgnoreCase(name)) {
+        if (productRepository.existsByNameIgnoreCaseAndSeller_Id(name, seller.getId())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "A product with this name already exists"
+                    "You already have a product with this name"
             );
-        }
-
-        Category category = null;
-        if (request.categoryId() != null) {
-            category = categoryRepository
-                    .findById(request.categoryId())
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.NOT_FOUND,
-                            "Category not found"
-                    ));
         }
 
         Product product = new Product(
                 name,
-                request.description(),
+                normalizeDescription(request.description()),
                 request.price(),
                 request.stock() == null ? 0 : request.stock(),
-                category
+                resolveCategory(request.categoryId()),
+                seller
         );
 
         return toResponse(productRepository.save(product));
+    }
+
+    @Transactional
+    public ProductResponse update(Long id, UpdateProductRequest request, String sellerEmail) {
+        Product product = getProduct(id);
+        User seller = getUserByEmail(sellerEmail);
+        requireOwner(product, seller);
+
+        if (request.name() != null) {
+            String name = normalizeName(request.name());
+
+            if (productRepository
+                    .existsByNameIgnoreCaseAndSeller_IdAndIdNot(name, seller.getId(), product.getId())) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "You already have a product with this name"
+                );
+            }
+
+            product.setName(name);
+        }
+
+        if (request.description() != null) {
+            product.setDescription(normalizeDescription(request.description()));
+        }
+
+        if (request.price() != null) {
+            product.setPrice(request.price());
+        }
+
+        if (request.stock() != null) {
+            product.setStock(request.stock());
+        }
+
+        if (request.categoryId() != null) {
+            product.setCategory(resolveCategory(request.categoryId()));
+        }
+
+        return toResponse(productRepository.save(product));
+    }
+
+    @Transactional
+    public void delete(Long id, String sellerEmail) {
+        Product product = getProduct(id);
+        User seller = getUserByEmail(sellerEmail);
+        requireOwner(product, seller);
+
+        productRepository.delete(product);
+    }
+
+    private Product getProduct(Long id) {
+        return productRepository
+                .findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Product not found"
+                ));
+    }
+
+    private User getUserByEmail(String email) {
+        return userRepository
+                .findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "User not found"
+                ));
+    }
+
+    private void requireOwner(Product product, User user) {
+        if (product.getSeller() == null
+                || !product.getSeller().getId().equals(user.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "You can only modify your own products"
+            );
+        }
+    }
+
+    private Category resolveCategory(Long categoryId) {
+        if (categoryId == null) {
+            return null;
+        }
+
+        return categoryRepository
+                .findById(categoryId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Category not found"
+                ));
+    }
+
+    private String normalizeName(String name) {
+        String normalized = name == null ? "" : name.trim();
+
+        if (normalized.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Product name must not be blank"
+            );
+        }
+
+        return normalized;
+    }
+
+    private String normalizeDescription(String description) {
+        if (description == null) {
+            return null;
+        }
+
+        String normalized = description.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private void validateFilter(ProductFilterRequest filter) {
@@ -128,6 +242,13 @@ public class ProductService {
                 ));
             }
 
+            if (filter.sellerId() != null) {
+                predicates.add(criteriaBuilder.equal(
+                        root.get("seller").get("id"),
+                        filter.sellerId()
+                ));
+            }
+
             if (filter.minPrice() != null) {
                 predicates.add(criteriaBuilder.greaterThanOrEqualTo(
                         root.get("price"),
@@ -163,6 +284,8 @@ public class ProductService {
     private ProductResponse toResponse(Product product) {
         Long categoryId = product.getCategory() == null ? null : product.getCategory().getId();
         String categoryName = product.getCategory() == null ? null : product.getCategory().getName();
+        Long sellerId = product.getSeller() == null ? null : product.getSeller().getId();
+        String sellerEmail = product.getSeller() == null ? null : product.getSeller().getEmail();
 
         return new ProductResponse(
                 product.getId(),
@@ -172,6 +295,8 @@ public class ProductService {
                 product.getStock(),
                 categoryId,
                 categoryName,
+                sellerId,
+                sellerEmail,
                 product.getCreatedAt()
         );
     }
