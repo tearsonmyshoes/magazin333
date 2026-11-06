@@ -102,6 +102,7 @@ Send the token as `Authorization: Bearer <token>`.
 | POST   | `/api/products/filter`  | public     | Filter products (body may be empty)      |
 | POST   | `/api/products`         | admin      | Publish a product                        |
 | PUT    | `/api/products/{id}`    | admin      | Partially update a product               |
+| PATCH  | `/api/products/{id}`    | admin      | Partially update a product (PATCH)       |
 | DELETE | `/api/products/{id}`    | admin      | Delete a product                         |
 
 Create product body:
@@ -117,7 +118,8 @@ Create product body:
 ```
 
 Update body accepts any subset of `name`, `description`, `price`, `stock`,
-`categoryId`. Missing fields stay unchanged.
+`categoryId`. Missing fields stay unchanged. `PATCH` requires at least one field,
+otherwise it returns `400 Bad Request`.
 
 Filter body:
 
@@ -143,6 +145,7 @@ with the same name.
 | GET    | `/api/categories`      | public  | List all categories                  |
 | POST   | `/api/categories`      | admin   | Create a category `{ name }`         |
 | PUT    | `/api/categories/{id}` | admin   | Rename a category `{ name }`         |
+| PATCH  | `/api/categories/{id}` | admin   | Rename a category `{ name }` (PATCH) |
 | DELETE | `/api/categories/{id}` | admin   | Delete a category unused by products |
 
 Deleting a category that still has products returns `409 Conflict`.

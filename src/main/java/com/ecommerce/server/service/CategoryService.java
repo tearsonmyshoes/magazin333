@@ -2,6 +2,7 @@ package com.ecommerce.server.service;
 
 import com.ecommerce.server.dto.category.CategoryRequest;
 import com.ecommerce.server.dto.category.CategoryResponse;
+import com.ecommerce.server.dto.category.UpdateCategoryRequest;
 import com.ecommerce.server.entity.Category;
 import com.ecommerce.server.repository.CategoryRepository;
 import com.ecommerce.server.repository.ProductRepository;
@@ -52,6 +53,18 @@ public class CategoryService {
 
     @Transactional
     public CategoryResponse update(Long id, CategoryRequest request) {
+        return patch(id, new UpdateCategoryRequest(request.name()));
+    }
+
+    @Transactional
+    public CategoryResponse patch(Long id, UpdateCategoryRequest request) {
+        if (request == null || request.name() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "At least one field must be provided"
+            );
+        }
+
         Category category = getCategory(id);
         String name = normalizeName(request.name());
 

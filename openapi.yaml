@@ -1,0 +1,799 @@
+openapi: 3.0.3
+
+info:
+  title: E-commerce API
+  description: |
+    Demo marketplace API (Spring Boot + SQLite + JWT).
+
+    Роли:
+    - `USER` — назначается при регистрации, может только просматривать товары и категории.
+    - `ADMIN` — встроенный администратор, может создавать/изменять/удалять товары и категории.
+
+    Авторизация: заголовок `Authorization: Bearer <token>`.
+    Токен выдаётся в ответе `/api/auth/register` и `/api/auth/login`, живёт 24 часа.
+
+    Встроенный администратор:
+    - email: `lagcompensation@admin.test`
+    - password: `123456789ww`
+  version: 1.0.0
+  contact:
+    name: E-commerce API
+
+servers:
+  - url: http://localhost:8080
+    description: Локальный сервер
+
+tags:
+  - name: Auth
+    description: Регистрация и вход
+  - name: Users
+    description: Текущий пользователь
+  - name: Products
+    description: Товары (чтение публичное, изменения только ADMIN)
+  - name: Categories
+    description: Категории (чтение публичное, изменения только ADMIN)
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация пользователя
+      description: Создаёт пользователя с ролью `USER` и сразу возвращает JWT. Поле `role` в теле игнорируется.
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: user@test.local
+              password: secret123
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Пользователь с таким email уже существует
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 409
+                message: A user with this email already exists
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Вход в аккаунт
+      description: Email нормализуется (trim + нижний регистр). При неверных данных возвращается одинаковый ответ.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: user@test.local
+              password: secret123
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Неверный email или пароль
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 401
+                message: Invalid email or password
+
+  /api/users/me:
+    get:
+      tags: [Users]
+      summary: Текущий пользователь
+      description: Возвращает данные пользователя, которому принадлежит токен.
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Данные текущего пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/products:
+    get:
+      tags: [Products]
+      summary: Список всех товаров
+      description: Публичный метод. Сортировка по `id` по возрастанию.
+      operationId: getProducts
+      security: []
+      responses:
+        '200':
+          description: Список товаров
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductResponse'
+    post:
+      tags: [Products]
+      summary: Создать товар
+      description: Только `ADMIN`. Имя уникально в рамках одного продавца. Продавцом становится текущий пользователь.
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+            example:
+              name: Coffee beans
+              description: 1 kg, medium roast
+              price: 12.50
+              stock: 20
+              categoryId: null
+      responses:
+        '201':
+          description: Товар создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Категория не найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 404
+                message: Category not found
+        '409':
+          description: У продавца уже есть товар с таким именем
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 409
+                message: You already have a product with this name
+
+  /api/products/filter:
+    post:
+      tags: [Products]
+      summary: Фильтрация товаров
+      description: |
+        Публичный метод. Все поля необязательны, условия объединяются через AND.
+        `name` ищется как подстрока без учёта регистра.
+        Тело можно не передавать вовсе.
+      operationId: filterProducts
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductFilterRequest'
+            example:
+              name: coffee
+              categoryId: 1
+              sellerId: 2
+              minPrice: 5
+              maxPrice: 20
+              minStock: 1
+              maxStock: 100
+      responses:
+        '200':
+          description: Отфильтрованный список товаров
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/products/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ProductId'
+    get:
+      tags: [Products]
+      summary: Получить товар по id
+      operationId: getProduct
+      security: []
+      responses:
+        '200':
+          description: Товар
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ProductNotFound'
+    put:
+      tags: [Products]
+      summary: Обновить товар (частично)
+      description: |
+        Только `ADMIN`. Поля, которых нет в теле (или они `null`), не изменяются.
+        Исторически `PUT` тоже работает как частичное обновление; `{}` допустим и ничего не меняет.
+      operationId: updateProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductRequest'
+            example:
+              price: 10.99
+              stock: 5
+      responses:
+        '200':
+          description: Обновлённый товар
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProductNotFound'
+        '409':
+          $ref: '#/components/responses/ProductNameConflict'
+    patch:
+      tags: [Products]
+      summary: Частично обновить товар
+      description: |
+        Только `ADMIN`. Обновляются только переданные поля.
+        В отличие от `PUT`, требуется хотя бы одно не-null поле, иначе `400`.
+        `null` означает «не менять»; очистить `description` можно пустой строкой.
+      operationId: patchProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductRequest'
+            example:
+              price: 10.99
+              stock: 5
+      responses:
+        '200':
+          description: Обновлённый товар
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          description: Ошибка валидации или пустое тело (нет ни одного поля)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                validation:
+                  value:
+                    status: 400
+                    message: "price: must be greater than or equal to 0.00"
+                emptyPatch:
+                  value:
+                    status: 400
+                    message: At least one field must be provided
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProductNotFound'
+        '409':
+          $ref: '#/components/responses/ProductNameConflict'
+    delete:
+      tags: [Products]
+      summary: Удалить товар
+      description: Только `ADMIN`. При успехе возвращает пустое тело.
+      operationId: deleteProduct
+      responses:
+        '204':
+          description: Товар удалён
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProductNotFound'
+
+  /api/categories:
+    get:
+      tags: [Categories]
+      summary: Список категорий
+      description: Публичный метод. Сортировка по `name`.
+      operationId: getCategories
+      security: []
+      responses:
+        '200':
+          description: Список категорий
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryResponse'
+    post:
+      tags: [Categories]
+      summary: Создать категорию
+      description: Только `ADMIN`. Имя уникально без учёта регистра.
+      operationId: createCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+            example:
+              name: Beverages
+      responses:
+        '201':
+          description: Категория создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/CategoryNameConflict'
+
+  /api/categories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/CategoryId'
+    put:
+      tags: [Categories]
+      summary: Переименовать категорию
+      description: Только `ADMIN`. Полное обновление — `name` обязателен.
+      operationId: updateCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+            example:
+              name: Beverages
+      responses:
+        '200':
+          description: Обновлённая категория
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/CategoryNotFound'
+        '409':
+          $ref: '#/components/responses/CategoryNameConflict'
+    patch:
+      tags: [Categories]
+      summary: Частично обновить категорию
+      description: Только `ADMIN`. Обновляет только переданные поля; требуется хотя бы одно поле.
+      operationId: patchCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCategoryRequest'
+            example:
+              name: Beverages
+      responses:
+        '200':
+          description: Обновлённая категория
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          description: Ошибка валидации или пустое тело
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                validation:
+                  value:
+                    status: 400
+                    message: "name: Category name must contain at most 100 characters"
+                emptyPatch:
+                  value:
+                    status: 400
+                    message: At least one field must be provided
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/CategoryNotFound'
+        '409':
+          $ref: '#/components/responses/CategoryNameConflict'
+    delete:
+      tags: [Categories]
+      summary: Удалить категорию
+      description: Только `ADMIN`. Нельзя удалить категорию, пока её используют товары (`409`).
+      operationId: deleteCategory
+      responses:
+        '204':
+          description: Категория удалена
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/CategoryNotFound'
+        '409':
+          description: Категория используется товарами
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 409
+                message: Category cannot be deleted while products use it
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT из `/api/auth/login` или `/api/auth/register`.
+
+  parameters:
+    ProductId:
+      name: id
+      in: path
+      required: true
+      description: Идентификатор товара
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 1
+    CategoryId:
+      name: id
+      in: path
+      required: true
+      description: Идентификатор категории
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 1
+
+  responses:
+    BadRequest:
+      description: Ошибка валидации или некорректный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            status: 400
+            message: "name: must not be blank"
+    Unauthorized:
+      description: Требуется авторизация
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            status: 401
+            message: Authentication required
+    Forbidden:
+      description: Недостаточно прав (нужна роль ADMIN)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            status: 403
+            message: Access denied
+    ProductNotFound:
+      description: Товар не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            status: 404
+            message: Product not found
+    CategoryNotFound:
+      description: Категория не найдена
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            status: 404
+            message: Category not found
+    ProductNameConflict:
+      description: У продавца уже есть товар с таким именем
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            status: 409
+            message: This seller already has a product with this name
+    CategoryNameConflict:
+      description: Категория с таким именем уже существует
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            status: 409
+            message: A category with this name already exists
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@test.local
+        password:
+          type: string
+          format: password
+          minLength: 6
+          example: secret123
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@test.local
+        password:
+          type: string
+          format: password
+          example: secret123
+
+    AuthResponse:
+      type: object
+      required: [token, tokenType, userId, email, role]
+      properties:
+        token:
+          type: string
+          description: JWT (24 часа)
+        tokenType:
+          type: string
+          example: Bearer
+        userId:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [USER, ADMIN]
+
+    UserResponse:
+      type: object
+      required: [id, email, role, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [USER, ADMIN]
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateProductRequest:
+      type: object
+      required: [name, price]
+      properties:
+        name:
+          type: string
+          maxLength: 150
+          example: Coffee beans
+        description:
+          type: string
+          maxLength: 5000
+          nullable: true
+          example: 1 kg, medium roast
+        price:
+          type: number
+          format: double
+          minimum: 0
+          description: Не более 8 цифр до запятой и 2 после
+          example: 12.5
+        stock:
+          type: integer
+          minimum: 0
+          default: 0
+          example: 20
+        categoryId:
+          type: integer
+          format: int64
+          nullable: true
+          example: null
+
+    UpdateProductRequest:
+      type: object
+      description: Все поля необязательны; `null` означает «не изменять».
+      properties:
+        name:
+          type: string
+          maxLength: 150
+        description:
+          type: string
+          maxLength: 5000
+          nullable: true
+        price:
+          type: number
+          format: double
+          minimum: 0
+        stock:
+          type: integer
+          minimum: 0
+        categoryId:
+          type: integer
+          format: int64
+          nullable: true
+
+    ProductResponse:
+      type: object
+      required: [id, name, price, stock, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        price:
+          type: number
+          format: double
+        stock:
+          type: integer
+        categoryId:
+          type: integer
+          format: int64
+          nullable: true
+        categoryName:
+          type: string
+          nullable: true
+        sellerId:
+          type: integer
+          format: int64
+          nullable: true
+        sellerEmail:
+          type: string
+          format: email
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    ProductFilterRequest:
+      type: object
+      description: Все поля необязательны, условия объединяются через AND.
+      properties:
+        name:
+          type: string
+          description: Подстрока имени без учёта регистра
+        categoryId:
+          type: integer
+          format: int64
+        sellerId:
+          type: integer
+          format: int64
+        minPrice:
+          type: number
+          format: double
+          minimum: 0
+        maxPrice:
+          type: number
+          format: double
+          minimum: 0
+        minStock:
+          type: integer
+          minimum: 0
+        maxStock:
+          type: integer
+          minimum: 0
+
+    CategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Beverages
+
+    UpdateCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+
+    CategoryResponse:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+
+    ApiError:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: Product not found

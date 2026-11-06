@@ -131,6 +131,23 @@ public class ProductService {
     }
 
     @Transactional
+    public ProductResponse patch(Long id, UpdateProductRequest request) {
+        if (request == null
+                || (request.name() == null
+                && request.description() == null
+                && request.price() == null
+                && request.stock() == null
+                && request.categoryId() == null)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "At least one field must be provided"
+            );
+        }
+
+        return update(id, request);
+    }
+
+    @Transactional
     public void delete(Long id) {
         productRepository.delete(getProduct(id));
     }
