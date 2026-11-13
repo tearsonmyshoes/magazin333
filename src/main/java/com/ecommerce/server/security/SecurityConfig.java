@@ -59,7 +59,7 @@ public class SecurityConfig {
                                 "/error"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/products/filter").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/products/filter", "/api/products/search").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions

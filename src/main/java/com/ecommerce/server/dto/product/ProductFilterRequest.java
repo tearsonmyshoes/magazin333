@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 public record ProductFilterRequest(
         String name,
         Long categoryId,
+        String categoryName,
         Long sellerId,
         @PositiveOrZero BigDecimal minPrice,
         @PositiveOrZero BigDecimal maxPrice,

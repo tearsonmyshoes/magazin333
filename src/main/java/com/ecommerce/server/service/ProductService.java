@@ -56,7 +56,7 @@ public class ProductService {
     @Transactional(readOnly = true)
     public List<ProductResponse> filter(ProductFilterRequest request) {
         ProductFilterRequest filter = request == null
-                ? new ProductFilterRequest(null, null, null, null, null, null, null)
+                ? new ProductFilterRequest(null, null, null, null, null, null, null, null)
                 : request;
 
         validateFilter(filter);
@@ -241,6 +241,14 @@ public class ProductService {
                 predicates.add(criteriaBuilder.equal(
                         root.get("category").get("id"),
                         filter.categoryId()
+                ));
+            }
+
+            if (filter.categoryName() != null && !filter.categoryName().isBlank()) {
+                String pattern = "%" + filter.categoryName().trim().toLowerCase() + "%";
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("category").get("name")),
+                        pattern
                 ));
             }
 

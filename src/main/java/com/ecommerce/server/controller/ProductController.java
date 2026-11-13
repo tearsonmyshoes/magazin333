@@ -2,6 +2,7 @@ package com.ecommerce.server.controller;
 
 import jakarta.validation.Valid;
 
+import com.ecommerce.server.cache.ProductSearchCache;
 import com.ecommerce.server.dto.product.CreateProductRequest;
 import com.ecommerce.server.dto.product.ProductFilterRequest;
 import com.ecommerce.server.dto.product.ProductResponse;
@@ -28,9 +29,14 @@ import java.util.List;
 @RequestMapping("/api/products")
 public class ProductController {
     private final ProductService productService;
+    private final ProductSearchCache productSearchCache;
 
-    public ProductController(ProductService productService) {
+    public ProductController(
+            ProductService productService,
+            ProductSearchCache productSearchCache
+    ) {
         this.productService = productService;
+        this.productSearchCache = productSearchCache;
     }
 
     @GetMapping
@@ -48,6 +54,21 @@ public class ProductController {
             @Valid @RequestBody(required = false) ProductFilterRequest request
     ) {
         return productService.filter(request);
+    }
+
+    @PostMapping("/search")
+    public List<ProductResponse> searchProducts(
+            @Valid @RequestBody(required = false) ProductFilterRequest request
+    ) {
+        List<ProductResponse> cached = productSearchCache.get(request);
+
+        if (cached != null) {
+            return cached;
+        }
+
+        List<ProductResponse> products = productService.filter(request);
+        productSearchCache.put(request, products);
+        return products;
     }
 
     @PostMapping

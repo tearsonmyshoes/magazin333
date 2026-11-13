@@ -14,7 +14,8 @@ token.
 
 ## Run
 
-Requirements: JDK 17 or newer.
+Requirements: JDK 17 or newer and a running Redis instance
+(`localhost:6379` by default).
 
 Windows (PowerShell or cmd):
 
@@ -36,6 +37,13 @@ The server listens on `http://localhost:8080` and stores data in
 `./e-commerce.db`. On startup the database schema is updated automatically,
 including old databases that still have a global unique constraint on product
 names.
+
+Only `POST /api/products/search` is cached in Redis. The key is
+`/api/products/search:<request body>`, the value is the JSON response, and the
+TTL is 60 seconds (configurable via `app.cache.product-search.ttl`). Expired
+entries are written to the application log. Redis connection settings are
+configured in `src/main/resources/application.properties` under
+`spring.data.redis.*`.
 
 ### Port 8080 is already in use
 
@@ -100,6 +108,7 @@ Send the token as `Authorization: Bearer <token>`.
 | GET    | `/api/products`         | public     | List all products                        |
 | GET    | `/api/products/{id}`    | public     | Get one product                          |
 | POST   | `/api/products/filter`  | public     | Filter products (body may be empty)      |
+| POST   | `/api/products/search`  | public     | Search products (same as filter)         |
 | POST   | `/api/products`         | admin      | Publish a product                        |
 | PUT    | `/api/products/{id}`    | admin      | Partially update a product               |
 | PATCH  | `/api/products/{id}`    | admin      | Partially update a product (PATCH)       |
@@ -127,6 +136,7 @@ Filter body:
 {
   "name": "coffee",
   "categoryId": 1,
+  "categoryName": "Beverages",
   "sellerId": 2,
   "minPrice": 5,
   "maxPrice": 20,
