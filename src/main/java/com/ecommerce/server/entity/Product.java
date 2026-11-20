@@ -29,6 +29,10 @@ public class Product {
     private Category category;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "brand_id")
+    private Brand brand;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "seller_id")
     private User seller;
 
@@ -43,6 +47,7 @@ public class Product {
             BigDecimal price,
             Integer stock,
             Category category,
+            Brand brand,
             User seller
             ) {
         this.name = name;
@@ -50,6 +55,7 @@ public class Product {
         this.price = price;
         this.stock = stock;
         this.category = category;
+        this.brand = brand;
         this.seller = seller;
     }
 
@@ -70,6 +76,7 @@ public class Product {
     public BigDecimal getPrice() { return price; }
     public Integer getStock() { return stock; }
     public Category getCategory() { return category; }
+    public Brand getBrand() { return brand; }
     public User getSeller() { return seller; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 
@@ -79,6 +86,7 @@ public class Product {
     public void setPrice(BigDecimal price) { this.price = price; }
     public void setStock(Integer stock) { this.stock = stock; }
     public void setCategory(Category category) { this.category = category; }
+    public void setBrand(Brand brand) { this.brand = brand; }
     public void setSeller(User seller) { this.seller = seller; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

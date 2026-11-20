@@ -4,10 +4,10 @@ Demo marketplace API written in Java Spring Boot (SQLite, JWT authentication).
 
 The API has two roles:
 
-- `USER` — assigned automatically on registration. Can browse products and
-  categories, but cannot change anything.
+- `USER` — assigned automatically on registration. Can browse products,
+  categories, and brands, but cannot change anything.
 - `ADMIN` — the built-in administrator account. Can create, update, and delete
-  products and categories.
+  products, categories, and brands.
 
 Browsing and filtering products is public. Product changes require an admin
 token.
@@ -122,12 +122,13 @@ Create product body:
   "description": "1 kg, medium roast",
   "price": 12.50,
   "stock": 20,
-  "categoryId": null
+  "categoryId": null,
+  "brandId": null
 }
 ```
 
 Update body accepts any subset of `name`, `description`, `price`, `stock`,
-`categoryId`. Missing fields stay unchanged. `PATCH` requires at least one field,
+`categoryId`, `brandId`. Missing fields stay unchanged. `PATCH` requires at least one field,
 otherwise it returns `400 Bad Request`.
 
 Filter body:
@@ -137,6 +138,8 @@ Filter body:
   "name": "coffee",
   "categoryId": 1,
   "categoryName": "Beverages",
+  "brandId": 1,
+  "brandName": "Logitech",
   "sellerId": 2,
   "minPrice": 5,
   "maxPrice": 20,
@@ -159,3 +162,21 @@ with the same name.
 | DELETE | `/api/categories/{id}` | admin   | Delete a category unused by products |
 
 Deleting a category that still has products returns `409 Conflict`.
+
+### Brands
+
+| Method | Path                 | Auth    | Description                                 |
+|--------|----------------------|---------|---------------------------------------------|
+| GET    | `/api/brands`        | public  | List all brands, optional `?name=` search   |
+| GET    | `/api/brands/{id}`   | public  | Get one brand                               |
+| POST   | `/api/brands`        | admin   | Create a brand `{ name }`                   |
+| PUT    | `/api/brands/{id}`   | admin   | Rename a brand `{ name }`                   |
+| PATCH  | `/api/brands/{id}`   | admin   | Rename a brand `{ name }` (PATCH)           |
+| DELETE | `/api/brands/{id}`   | admin   | Delete a brand unused by products           |
+
+`GET /api/brands?name=logi` returns brands whose name contains the substring
+(case-insensitive).
+
+Deleting a brand that still has products returns `409 Conflict`. Products are
+linked to a brand through `brandId` and can be searched by `brandId` or by a
+case-insensitive `brandName` substring (for example `{"brandName": "logitech"}`).

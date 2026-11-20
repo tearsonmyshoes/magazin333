@@ -24,5 +24,7 @@ public record UpdateProductRequest(
         @PositiveOrZero
         Integer stock,
 
-        Long categoryId
+        Long categoryId,
+
+        Long brandId
 ) {}

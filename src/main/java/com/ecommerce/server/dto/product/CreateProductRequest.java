@@ -25,5 +25,7 @@ public record CreateProductRequest(
         @PositiveOrZero
         Integer stock,
 
-        Long categoryId
+        Long categoryId,
+
+        Long brandId
 ) {}

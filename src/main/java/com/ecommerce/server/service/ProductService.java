@@ -4,9 +4,11 @@ import com.ecommerce.server.dto.product.CreateProductRequest;
 import com.ecommerce.server.dto.product.ProductFilterRequest;
 import com.ecommerce.server.dto.product.ProductResponse;
 import com.ecommerce.server.dto.product.UpdateProductRequest;
+import com.ecommerce.server.entity.Brand;
 import com.ecommerce.server.entity.Category;
 import com.ecommerce.server.entity.Product;
 import com.ecommerce.server.entity.User;
+import com.ecommerce.server.repository.BrandRepository;
 import com.ecommerce.server.repository.CategoryRepository;
 import com.ecommerce.server.repository.ProductRepository;
 import com.ecommerce.server.repository.UserRepository;
@@ -27,15 +29,18 @@ import java.util.List;
 public class ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final BrandRepository brandRepository;
     private final UserRepository userRepository;
 
     public ProductService(
             ProductRepository productRepository,
             CategoryRepository categoryRepository,
+            BrandRepository brandRepository,
             UserRepository userRepository
     ) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
+        this.brandRepository = brandRepository;
         this.userRepository = userRepository;
     }
 
@@ -56,7 +61,7 @@ public class ProductService {
     @Transactional(readOnly = true)
     public List<ProductResponse> filter(ProductFilterRequest request) {
         ProductFilterRequest filter = request == null
-                ? new ProductFilterRequest(null, null, null, null, null, null, null, null)
+                ? new ProductFilterRequest(null, null, null, null, null, null, null, null, null, null)
                 : request;
 
         validateFilter(filter);
@@ -86,6 +91,7 @@ public class ProductService {
                 request.price(),
                 request.stock() == null ? 0 : request.stock(),
                 resolveCategory(request.categoryId()),
+                resolveBrand(request.brandId()),
                 seller
         );
 
@@ -127,6 +133,10 @@ public class ProductService {
             product.setCategory(resolveCategory(request.categoryId()));
         }
 
+        if (request.brandId() != null) {
+            product.setBrand(resolveBrand(request.brandId()));
+        }
+
         return toResponse(productRepository.save(product));
     }
 
@@ -137,7 +147,8 @@ public class ProductService {
                 && request.description() == null
                 && request.price() == null
                 && request.stock() == null
-                && request.categoryId() == null)) {
+                && request.categoryId() == null
+                && request.brandId() == null)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "At least one field must be provided"
@@ -180,6 +191,19 @@ public class ProductService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Category not found"
+                ));
+    }
+
+    private Brand resolveBrand(Long brandId) {
+        if (brandId == null) {
+            return null;
+        }
+
+        return brandRepository
+                .findById(brandId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Brand not found"
                 ));
     }
 
@@ -252,6 +276,21 @@ public class ProductService {
                 ));
             }
 
+            if (filter.brandId() != null) {
+                predicates.add(criteriaBuilder.equal(
+                        root.get("brand").get("id"),
+                        filter.brandId()
+                ));
+            }
+
+            if (filter.brandName() != null && !filter.brandName().isBlank()) {
+                String pattern = "%" + filter.brandName().trim().toLowerCase() + "%";
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("brand").get("name")),
+                        pattern
+                ));
+            }
+
             if (filter.sellerId() != null) {
                 predicates.add(criteriaBuilder.equal(
                         root.get("seller").get("id"),
@@ -294,6 +333,8 @@ public class ProductService {
     private ProductResponse toResponse(Product product) {
         Long categoryId = product.getCategory() == null ? null : product.getCategory().getId();
         String categoryName = product.getCategory() == null ? null : product.getCategory().getName();
+        Long brandId = product.getBrand() == null ? null : product.getBrand().getId();
+        String brandName = product.getBrand() == null ? null : product.getBrand().getName();
         Long sellerId = product.getSeller() == null ? null : product.getSeller().getId();
         String sellerEmail = product.getSeller() == null ? null : product.getSeller().getEmail();
 
@@ -305,6 +346,8 @@ public class ProductService {
                 product.getStock(),
                 categoryId,
                 categoryName,
+                brandId,
+                brandName,
                 sellerId,
                 sellerEmail,
                 product.getCreatedAt()

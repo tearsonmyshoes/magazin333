@@ -32,6 +32,8 @@ tags:
     description: Товары (чтение публичное, изменения только ADMIN)
   - name: Categories
     description: Категории (чтение публичное, изменения только ADMIN)
+  - name: Brands
+    description: Бренды (чтение публичное, изменения только ADMIN)
 
 security:
   - bearerAuth: []
@@ -156,6 +158,7 @@ paths:
               price: 12.50
               stock: 20
               categoryId: null
+              brandId: null
       responses:
         '201':
           description: Товар создан
@@ -170,14 +173,20 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
-          description: Категория не найдена
+          description: Категория или бренд не найден
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
-              example:
-                status: 404
-                message: Category not found
+              examples:
+                category:
+                  value:
+                    status: 404
+                    message: Category not found
+                brand:
+                  value:
+                    status: 404
+                    message: Brand not found
         '409':
           description: У продавца уже есть товар с таким именем
           content:
@@ -194,7 +203,7 @@ paths:
       summary: Фильтрация товаров
       description: |
         Публичный метод. Все поля необязательны, условия объединяются через AND.
-        `name` и `categoryName` ищутся как подстрока без учёта регистра.
+        `name`, `categoryName` и `brandName` ищутся как подстрока без учёта регистра.
         Тело можно не передавать вовсе.
       operationId: filterProducts
       security: []
@@ -208,6 +217,8 @@ paths:
               name: coffee
               categoryId: 1
               categoryName: Beverages
+              brandId: 1
+              brandName: Logitech
               sellerId: 2
               minPrice: 5
               maxPrice: 20
@@ -231,7 +242,8 @@ paths:
       summary: Поиск товаров
       description: |
         Публичный метод. Работает как фильтрация: все поля необязательны,
-        условия объединяются через AND. `name` и `categoryName` ищутся как подстрока без учёта регистра.
+        условия объединяются через AND. `name`, `categoryName` и `brandName`
+        ищутся как подстрока без учёта регистра.
         Тело можно не передавать вовсе. Результат кешируется в Redis на 60 секунд:
         ключ — `/api/products/search:<request body>`, значение — JSON-ответ.
         Истечение срока жизни записи пишется в лог приложения.
@@ -247,6 +259,8 @@ paths:
               name: coffee
               categoryId: 1
               categoryName: Beverages
+              brandId: 1
+              brandName: Logitech
               sellerId: 2
               minPrice: 5
               maxPrice: 20
@@ -523,6 +537,178 @@ paths:
                 status: 409
                 message: Category cannot be deleted while products use it
 
+  /api/brands:
+    get:
+      tags: [Brands]
+      summary: Список брендов / поиск по имени
+      description: |
+        Публичный метод. Сортировка по `name`. Если передан `name`, возвращаются
+        бренды, имя которых содержит эту подстроку без учёта регистра
+        (например, `/api/brands?name=logi`).
+      operationId: getBrands
+      security: []
+      parameters:
+        - name: name
+          in: query
+          required: false
+          description: Подстрока имени бренда без учёта регистра
+          schema:
+            type: string
+          example: logi
+      responses:
+        '200':
+          description: Список брендов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BrandResponse'
+    post:
+      tags: [Brands]
+      summary: Создать бренд
+      description: Только `ADMIN`. Имя уникально без учёта регистра.
+      operationId: createBrand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BrandRequest'
+            example:
+              name: Logitech
+      responses:
+        '201':
+          description: Бренд создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/BrandNameConflict'
+
+  /api/brands/{id}:
+    parameters:
+      - $ref: '#/components/parameters/BrandId'
+    get:
+      tags: [Brands]
+      summary: Получить бренд по id
+      operationId: getBrand
+      security: []
+      responses:
+        '200':
+          description: Бренд
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/BrandNotFound'
+    put:
+      tags: [Brands]
+      summary: Переименовать бренд
+      description: Только `ADMIN`. Полное обновление — `name` обязателен.
+      operationId: updateBrand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BrandRequest'
+            example:
+              name: Logitech
+      responses:
+        '200':
+          description: Обновлённый бренд
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/BrandNotFound'
+        '409':
+          $ref: '#/components/responses/BrandNameConflict'
+    patch:
+      tags: [Brands]
+      summary: Частично обновить бренд
+      description: Только `ADMIN`. Обновляет только переданные поля; требуется хотя бы одно поле.
+      operationId: patchBrand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBrandRequest'
+            example:
+              name: Logitech
+      responses:
+        '200':
+          description: Обновлённый бренд
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandResponse'
+        '400':
+          description: Ошибка валидации или пустое тело
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                validation:
+                  value:
+                    status: 400
+                    message: "name: Brand name must contain at most 100 characters"
+                emptyPatch:
+                  value:
+                    status: 400
+                    message: At least one field must be provided
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/BrandNotFound'
+        '409':
+          $ref: '#/components/responses/BrandNameConflict'
+    delete:
+      tags: [Brands]
+      summary: Удалить бренд
+      description: Только `ADMIN`. Нельзя удалить бренд, пока его используют товары (`409`).
+      operationId: deleteBrand
+      responses:
+        '204':
+          description: Бренд удалён
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/BrandNotFound'
+        '409':
+          description: Бренд используется товарами
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                status: 409
+                message: Brand cannot be deleted while products use it
+
 components:
   securitySchemes:
     bearerAuth:
@@ -547,6 +733,16 @@ components:
       in: path
       required: true
       description: Идентификатор категории
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 1
+    BrandId:
+      name: id
+      in: path
+      required: true
+      description: Идентификатор бренда
       schema:
         type: integer
         format: int64
@@ -599,6 +795,15 @@ components:
           example:
             status: 404
             message: Category not found
+    BrandNotFound:
+      description: Бренд не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            status: 404
+            message: Brand not found
     ProductNameConflict:
       description: У продавца уже есть товар с таким именем
       content:
@@ -617,6 +822,15 @@ components:
           example:
             status: 409
             message: A category with this name already exists
+    BrandNameConflict:
+      description: Бренд с таким именем уже существует
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            status: 409
+            message: A brand with this name already exists
 
   schemas:
     RegisterRequest:
@@ -712,6 +926,11 @@ components:
           format: int64
           nullable: true
           example: null
+        brandId:
+          type: integer
+          format: int64
+          nullable: true
+          example: null
 
     UpdateProductRequest:
       type: object
@@ -732,6 +951,10 @@ components:
           type: integer
           minimum: 0
         categoryId:
+          type: integer
+          format: int64
+          nullable: true
+        brandId:
           type: integer
           format: int64
           nullable: true
@@ -760,6 +983,13 @@ components:
         categoryName:
           type: string
           nullable: true
+        brandId:
+          type: integer
+          format: int64
+          nullable: true
+        brandName:
+          type: string
+          nullable: true
         sellerId:
           type: integer
           format: int64
@@ -785,6 +1015,12 @@ components:
         categoryName:
           type: string
           description: Подстрока названия категории без учёта регистра
+        brandId:
+          type: integer
+          format: int64
+        brandName:
+          type: string
+          description: Подстрока названия бренда без учёта регистра (например, Logitech)
         sellerId:
           type: integer
           format: int64
@@ -821,6 +1057,33 @@ components:
           maxLength: 100
 
     CategoryResponse:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+
+    BrandRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Logitech
+
+    UpdateBrandRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+
+    BrandResponse:
       type: object
       required: [id, name]
       properties:

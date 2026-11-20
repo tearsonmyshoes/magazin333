@@ -126,6 +126,7 @@ public class DatabaseMigration implements ApplicationRunner {
                     "price" numeric(10,2) not null,
                     "stock" integer not null,
                     "category_id" bigint,
+                    "brand_id" bigint,
                     "seller_id" bigint,
                     primary key ("id")
                 )
@@ -139,6 +140,7 @@ public class DatabaseMigration implements ApplicationRunner {
                 "price",
                 "stock",
                 "category_id",
+                "brand_id",
                 "seller_id"
         );
 
